@@ -231,10 +231,18 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(
-                onClick = { 
+                onClick = {
+                    // 1) Clear our own JWT + user prefs
                     com.example.deepworkai.network.NetworkPreferences.authToken = null
-                    navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }
+                    com.example.deepworkai.network.NetworkPreferences.userId = null
+                    com.example.deepworkai.network.NetworkPreferences.userName = null
+                    // 2) Clear Google's cached account so picker shows on next login
+                    val googleAuthManager = com.example.deepworkai.network.GoogleAuthManager(context)
+                    googleAuthManager.signOut {
+                        // 3) Navigate to login once Google cache is cleared
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),

@@ -28,4 +28,20 @@ class GoogleAuthManager(context: Context) {
     private val googleSignInClient = GoogleSignIn.getClient(context, gso)
 
     fun getSignInIntent() = googleSignInClient.signInIntent
+
+    /**
+     * Clears Google's cached account so the next sign-in attempt forces the account picker.
+     * Call this on logout AND right before launching getSignInIntent() to guarantee a picker.
+     */
+    fun signOut(onComplete: () -> Unit = {}) {
+        googleSignInClient.signOut().addOnCompleteListener { onComplete() }
+    }
+
+    /**
+     * Fully revokes app access (user has to consent again next time).
+     * Use this only on full logout, not on regular account switching.
+     */
+    fun revokeAccess(onComplete: () -> Unit = {}) {
+        googleSignInClient.revokeAccess().addOnCompleteListener { onComplete() }
+    }
 }

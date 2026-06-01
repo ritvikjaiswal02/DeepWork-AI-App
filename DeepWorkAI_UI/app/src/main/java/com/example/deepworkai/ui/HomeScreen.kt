@@ -106,7 +106,6 @@ fun HomeScreen(
         ?.collectAsState()
 
     var burnoutRisk by remember { mutableStateOf("Low") }
-    var showWellDoneDialog by remember { mutableStateOf(false) }
     
     var showChatbot by remember { mutableStateOf(false) }
 
@@ -134,12 +133,11 @@ fun HomeScreen(
         }
     }
 
-    // Update burnoutRisk and show dialog when a new value is returned
+    // Update burnoutRisk silently when a new value is returned (no popup)
     LaunchedEffect(returnedRisk?.value) {
         val riskValue = returnedRisk?.value as? String
         if (riskValue != null) {
             burnoutRisk = riskValue
-            showWellDoneDialog = true
             navController?.currentBackStackEntry?.savedStateHandle?.set("burnout_risk", null)
         }
     }
@@ -330,61 +328,11 @@ fun HomeScreen(
             )
         }
 
-        // --- Well Done Message ---
-        if (showWellDoneDialog) {
-            AlertDialog(
-                onDismissRequest = { showWellDoneDialog = false },
-                containerColor = MaterialTheme.colorScheme.surface,
-                title = {
-                    DialogTitle("Session Complete! 🎉")
-                },
-                text = {
-                    WellDoneContent(burnoutRisk)
-                },
-                confirmButton = {
-                    AwesomeButton(onClick = { showWellDoneDialog = false })
-                }
-            )
-        }
-
         if (showChatbot) {
             AIChatbotBottomSheet(
                 onDismiss = { showChatbot = false },
                 focusService = focusService
             )
-        }
-    }
-}
-
-@Composable
-fun WellDoneContent(riskValue: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        M3Text("Well done! Your session has been recorded.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        val rColor = when (riskValue) {
-            "High" -> Color(0xFFEF4444)
-            "Medium" -> Color(0xFFFACC15)
-            else -> Color(0xFF4ADE80)
-        }
-        
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = rColor.copy(alpha = 0.15f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, rColor.copy(alpha=0.5f))
-        ) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).background(rColor, CircleShape))
-                Spacer(modifier = Modifier.width(8.dp))
-                M3Text(
-                    text = "Burnout Risk: $riskValue",
-                    color = rColor,
-                    fontWeight = FontWeight.Bold
-                )
-            }
         }
     }
 }
@@ -428,12 +376,6 @@ fun CancelButton(onClick: () -> Unit) {
     }
 }
 
-@Composable
-fun AwesomeButton(onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
-        M3Text("Awesome", color = DeepWorkBlue)
-    }
-}
 
 
 @Composable

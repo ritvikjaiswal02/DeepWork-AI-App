@@ -219,7 +219,12 @@ fun LoginScreen(
             SocialButton(
                 icon = R.drawable.ic_google,
                 text = "Continue with Google",
-                onClick = { googleLauncher.launch(googleAuthManager.getSignInIntent()) },
+                onClick = {
+                    // Force the account picker by clearing any cached Google account first.
+                    googleAuthManager.signOut {
+                        googleLauncher.launch(googleAuthManager.getSignInIntent())
+                    }
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
