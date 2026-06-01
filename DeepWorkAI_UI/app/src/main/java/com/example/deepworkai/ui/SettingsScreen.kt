@@ -145,12 +145,80 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                PreferenceItem(
-                    icon = Icons.Default.Notifications,
-                    title = "Notifications",
-                    subtitle = "Smart focus reminders",
-                    onClick = { navController.navigate(Screen.Notifications.route) }
-                )
+                Column {
+                    PreferenceItem(
+                        icon = Icons.Default.Notifications,
+                        title = "Notifications",
+                        subtitle = "Smart focus reminders",
+                        onClick = { navController.navigate(Screen.Notifications.route) }
+                    )
+                    Divider(color = Color(0xFF0D1117), thickness = 1.dp)
+                    var showUrlDialog by remember { mutableStateOf(false) }
+                    var urlInput by remember { mutableStateOf(com.example.deepworkai.network.NetworkPreferences.backendUrl) }
+                    PreferenceItem(
+                        icon = Icons.Default.Wifi,
+                        title = "Backend URL",
+                        subtitle = com.example.deepworkai.network.NetworkPreferences.backendUrl,
+                        onClick = {
+                            urlInput = com.example.deepworkai.network.NetworkPreferences.backendUrl
+                            showUrlDialog = true
+                        }
+                    )
+                    if (showUrlDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showUrlDialog = false },
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            title = { Text("Backend URL", color = Color.White, fontWeight = FontWeight.Bold) },
+                            text = {
+                                Column {
+                                    Text(
+                                        "Set this to the laptop's current IP, e.g. http://192.168.1.8:8080",
+                                        color = Color.Gray,
+                                        fontSize = 13.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    OutlinedTextField(
+                                        value = urlInput,
+                                        onValueChange = { urlInput = it },
+                                        label = { Text("URL", color = Color.Gray) },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Color(0xFF3B82F6),
+                                            unfocusedBorderColor = Color.Gray,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        )
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    com.example.deepworkai.network.NetworkPreferences.backendUrl = urlInput
+                                    showUrlDialog = false
+                                    es.dmoral.toasty.Toasty.success(
+                                        context,
+                                        "Backend URL updated. New requests will use it immediately.",
+                                        android.widget.Toast.LENGTH_LONG,
+                                        true
+                                    ).show()
+                                }) { Text("Save", color = Color(0xFF3B82F6)) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    com.example.deepworkai.network.NetworkPreferences.backendUrl = ""
+                                    showUrlDialog = false
+                                    es.dmoral.toasty.Toasty.info(
+                                        context,
+                                        "Reset to build-time default.",
+                                        android.widget.Toast.LENGTH_SHORT,
+                                        true
+                                    ).show()
+                                }) { Text("Reset", color = Color.Gray) }
+                            }
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
