@@ -59,15 +59,9 @@ fun HelpScreen(navController: NavController) {
             ) {
                 Column {
                     ContactItem(
-                        icon = Icons.Default.Phone,
-                        title = "Phone Number",
-                        value = "+91 98116110462"
-                    )
-                    Divider(color = Color(0xFF0D1117), thickness = 1.dp)
-                    ContactItem(
                         icon = Icons.Default.Email,
                         title = "Email Support",
-                        value = "vs9736400462@gmail.com"
+                        value = "ritvikjaiswal020203@gmail.com"
                     )
                 }
             }

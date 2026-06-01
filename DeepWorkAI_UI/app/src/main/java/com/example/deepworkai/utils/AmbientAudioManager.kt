@@ -15,19 +15,30 @@ class AmbientAudioManager(private val context: Context) {
             mediaPlayer?.setVolume(value, value)
         }
 
-    fun playSound(soundResId: Int) {
-        if (currentSoundResId == soundResId && isPlaying) {
-            return // Already playing this sound
-        }
+    /**
+     * Callback fired when the currently playing track finishes.
+     * If set, the player will NOT loop the same track; the caller is expected to advance
+     * to the next track (e.g. via playSound() on the next resId).
+     */
+    var onTrackComplete: (() -> Unit)? = null
 
+    fun playSound(soundResId: Int) {
+        // Always replace, even if same resId — allows "restart current track" behaviour
         mediaPlayer?.release()
-        
-        mediaPlayer = MediaPlayer.create(context, soundResId).apply {
-            isLooping = true
-            setVolume(volume, volume)
-            start()
+
+        val player = MediaPlayer.create(context, soundResId) ?: return // null = resource failed
+        // If a completion callback is set, do not loop — let onCompletion advance us.
+        player.isLooping = onTrackComplete == null
+        player.setVolume(volume, volume)
+        if (onTrackComplete != null) {
+            player.setOnCompletionListener {
+                isPlaying = false
+                onTrackComplete?.invoke()
+            }
         }
-        
+        player.start()
+
+        mediaPlayer = player
         currentSoundResId = soundResId
         isPlaying = true
     }

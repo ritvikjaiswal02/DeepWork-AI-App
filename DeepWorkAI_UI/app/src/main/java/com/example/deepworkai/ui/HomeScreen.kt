@@ -11,7 +11,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
@@ -114,8 +116,13 @@ fun HomeScreen(
     // Cognitive Load from ViewModel
     val cognitiveLoad by viewModel.cognitiveLoad.collectAsState()
 
+    // Distraction insights for home page card
+    var distractionInsights by remember { mutableStateOf<com.example.deepworkai.models.DistractionInsightsResponse?>(null) }
+
     LaunchedEffect(Unit) {
         profileViewModel.fetchProfile()
+        val uid = com.example.deepworkai.network.NetworkPreferences.userId ?: "4acbc632-9cb6-4d7c-8bcc-8c3bd226f9c0"
+        distractionInsights = focusService.getDistractionInsights(uid)
     }
 
     // Update Date & Time every second
@@ -249,7 +256,7 @@ fun HomeScreen(
 
             // --- New ML Ready UI Components ---
             val weeklyMinutes = analyticsViewModel.uiState.value?.weeklyDeepMinutes ?: emptyList()
-            WeeklyFocusGraph(weeklyMinutes)
+            WeeklyFocusGraph(weeklyMinutes, onViewAnalytics = { navController?.navigate(Screen.Analytics.route) })
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -262,6 +269,10 @@ fun HomeScreen(
                     navController?.navigate(Screen.FlowInsights.route)
                 }
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            TopDistractionsCard(insights = distractionInsights)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -462,69 +473,69 @@ fun QuoteCard() {
 @Composable
 fun HomeHeader(userName: String, greeting: String, currentDateTime: Calendar, imageUrl: String? = null, onProfileClick: () -> Unit = {}, streakCount: Int = 0) {
     val dateFormatter = remember { SimpleDateFormat("EEEE, MMM dd", Locale.getDefault()) }
-    val timeFormatter = remember { SimpleDateFormat("hh:mm:ss a", Locale.getDefault()) }
+    val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Image(
-                painter = painterResource(id = R.drawable.app_logo),
-                contentDescription = "Logo",
-                modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(12.dp))
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-            M3Text(
-                text = dateFormatter.format(currentDateTime.time),
-                color = DeepWorkTextSecondary,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            M3Text(
-                text = timeFormatter.format(currentDateTime.time),
-                color = DeepWorkBlue,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                M3Text(
-                    text = "$greeting, $userName",
-                    color = Color.White,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-        }
-        
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, DeepWorkBlue.copy(alpha = 0.5f), CircleShape)
-                .clickable { onProfileClick() }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Row 1: Logo + time on left, profile pic on right
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (imageUrl != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
-                    painter = rememberAsyncImagePainter(imageUrl),
-                    contentDescription = "Profile",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    painter = painterResource(id = R.drawable.app_logo),
+                    contentDescription = "Logo",
+                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
                 )
-            } else {
-                Icon(
-                    Icons.Default.Person, 
-                    contentDescription = null, 
-                    tint = Color.Gray, 
-                    modifier = Modifier.fillMaxSize().padding(10.dp)
-                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    M3Text(
+                        text = dateFormatter.format(currentDateTime.time),
+                        color = DeepWorkTextSecondary,
+                        fontSize = 12.sp
+                    )
+                    M3Text(
+                        text = timeFormatter.format(currentDateTime.time),
+                        color = DeepWorkBlue,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, DeepWorkBlue.copy(alpha = 0.5f), CircleShape)
+                    .clickable { onProfileClick() }
+            ) {
+                if (imageUrl != null) {
+                    Image(
+                        painter = rememberAsyncImagePainter(imageUrl),
+                        contentDescription = "Profile",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(Icons.Default.Person, contentDescription = null,
+                        tint = Color.Gray, modifier = Modifier.fillMaxSize().padding(10.dp))
+                }
             }
         }
+
+        // Row 2: Greeting on its own line — no space competition
+        Spacer(modifier = Modifier.height(10.dp))
+        M3Text(
+            text = "$greeting, $userName 👋",
+            color = Color.White,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -694,16 +705,37 @@ fun BottomNavItem(
 }
 
 @Composable
-fun WeeklyFocusGraph(weeklyMinutes: List<Int>) {
+fun WeeklyFocusGraph(weeklyMinutes: List<Int>, onViewAnalytics: (() -> Unit)? = null) {
+    var showMenu by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
         shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(containerColor = DeepWorkSurface)
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
                 M3Text("Weekly Focus (Mins)", color = Color.White, fontWeight = FontWeight.Bold)
-                Icon(Icons.Default.MoreHoriz, contentDescription = null, tint = DeepWorkTextSecondary)
+                Box {
+                    Icon(Icons.Default.MoreHoriz, contentDescription = "Options",
+                        tint = DeepWorkTextSecondary,
+                        modifier = Modifier.clickable { showMenu = true })
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { M3Text("View Full Analytics") },
+                            leadingIcon = { Icon(Icons.Default.BarChart, contentDescription = null) },
+                            onClick = { showMenu = false; onViewAnalytics?.invoke() }
+                        )
+                        DropdownMenuItem(
+                            text = { M3Text("This week: ${weeklyMinutes.sum()} mins total") },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                            onClick = { showMenu = false }
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -980,6 +1012,7 @@ fun AIChatbotBottomSheet(
                 .fillMaxWidth()
                 .padding(16.dp)
                 .heightIn(min = 400.dp, max = 600.dp)
+                .imePadding()
         ) {
             M3Text("DeepWork AI Assistant", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(modifier = Modifier.height(16.dp))
@@ -1195,19 +1228,156 @@ fun SmartPlannerCard(onClick: () -> Unit) {
 }
 
 @Composable
+fun TopDistractionsCard(insights: com.example.deepworkai.models.DistractionInsightsResponse?) {
+    // Aggregate all apps across all sessions
+    val allApps = insights?.sessions?.flatMap { it.apps } ?: emptyList()
+    val topApps = allApps
+        .groupBy { it.appName }
+        .map { (name, entries) -> name to entries.sumOf { it.usageTime } }
+        .sortedByDescending { it.second }
+        .take(5)
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.04f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFFEF4444).copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Whatshot, contentDescription = null,
+                        tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    M3Text("Top Distractions", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    M3Text("Most opened apps across sessions", color = Color(0xFF64748B), fontSize = 11.sp)
+                }
+            }
+
+            if (topApps.isEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                M3Text(
+                    "No distraction data yet. Complete a session to see your patterns.",
+                    color = Color(0xFF475569),
+                    fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+                val maxTime = topApps.maxOf { it.second }.coerceAtLeast(1)
+                topApps.forEachIndexed { index, (appName, totalMinutes) ->
+                    val fraction = totalMinutes.toFloat() / maxTime
+                    val rankColor = when (index) {
+                        0 -> Color(0xFFEF4444)
+                        1 -> Color(0xFFF59E0B)
+                        else -> Color(0xFF6366F1)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        M3Text(
+                            "${index + 1}",
+                            color = rankColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.width(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                M3Text(appName, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                M3Text("${totalMinutes}m total", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            LinearProgressIndicator(
+                                progress = fraction,
+                                modifier = Modifier.fillMaxWidth().height(4.dp),
+                                color = rankColor.copy(alpha = 0.8f),
+                                trackColor = Color.White.copy(alpha = 0.07f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun WellnessChecklist(
     wellnessLog: com.example.deepworkai.models.WellnessLog?,
     onUpdate: (Int?, Int?, Boolean?, Boolean?) -> Unit
 ) {
+    val sleep = wellnessLog?.sleepHours ?: 0
+    val hydration = wellnessLog?.hydrationLevel ?: 0
+    val meditated = wellnessLog?.meditated ?: false
+    val exercised = wellnessLog?.exercise ?: false
+
+    // Compute a focus readiness score from wellness data
+    val sleepScore = when {
+        sleep >= 8 -> 100
+        sleep == 7 -> 85
+        sleep == 6 -> 65
+        sleep == 5 -> 45
+        sleep > 0  -> 25
+        else       -> 0
+    }
+    val hydrationScore = when {
+        hydration >= 8 -> 100
+        hydration >= 6 -> 80
+        hydration >= 4 -> 60
+        hydration >= 2 -> 35
+        hydration > 0  -> 15
+        else           -> 0
+    }
+    val bonuses = (if (meditated) 10 else 0) + (if (exercised) 10 else 0)
+    val readiness = ((sleepScore * 0.5 + hydrationScore * 0.4 + bonuses * 0.5).toInt()).coerceIn(0, 100)
+
+    val sleepFeedback = when {
+        sleep == 0   -> "Log your sleep to get insights"
+        sleep < 6    -> "⚠️ Under-slept — focus may be impaired by up to 40%"
+        sleep == 6   -> "Adequate sleep — some fatigue likely"
+        sleep == 7   -> "Good sleep — you should focus well today"
+        sleep >= 8   -> "✅ Well rested — optimal for deep work"
+        else -> ""
+    }
+    val hydrationFeedback = when {
+        hydration == 0 -> "Log water intake for better insights"
+        hydration < 3  -> "⚠️ Low hydration — even mild dehydration cuts focus"
+        hydration < 6  -> "Decent hydration — aim for 8 glasses"
+        else           -> "✅ Well hydrated — brain performance supported"
+    }
+    val readinessColor = when {
+        readiness >= 75 -> Color(0xFF10B981)
+        readiness >= 45 -> Color(0xFFF59E0B)
+        else            -> Color(0xFFEF4444)
+    }
+
     Column {
-        M3Text(
-            text = "Daily Focus Wellness",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            M3Text("Daily Focus Wellness", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+            if (readiness > 0) {
+                Surface(color = readinessColor.copy(alpha = 0.15f), shape = RoundedCornerShape(20.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, readinessColor.copy(alpha = 0.4f))) {
+                    M3Text("Readiness $readiness%", color = readinessColor, fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = DeepWorkSurface,
@@ -1218,33 +1388,38 @@ fun WellnessChecklist(
                 WellnessRow(
                     icon = Icons.Default.Bedtime,
                     title = "Sleep",
-                    value = "${wellnessLog?.sleepHours ?: 0}h",
-                    onIncrement = { onUpdate((wellnessLog?.sleepHours ?: 0) + 1, null, null, null) },
-                    onDecrement = { onUpdate(((wellnessLog?.sleepHours ?: 0) - 1).coerceAtLeast(0), null, null, null) }
+                    value = "${sleep}h",
+                    onIncrement = { onUpdate(sleep + 1, null, null, null) },
+                    onDecrement = { onUpdate((sleep - 1).coerceAtLeast(0), null, null, null) }
                 )
-                Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.White.copy(alpha = 0.05f))
+                if (sleep > 0) {
+                    M3Text(sleepFeedback, color = if (sleep < 6) Color(0xFFF59E0B) else Color(0xFF94A3B8),
+                        fontSize = 11.sp, modifier = Modifier.padding(start = 36.dp, bottom = 4.dp))
+                }
+                Divider(modifier = Modifier.padding(vertical = 10.dp), color = Color.White.copy(alpha = 0.05f))
                 WellnessRow(
                     icon = Icons.Default.WaterDrop,
                     title = "Hydration",
-                    value = "${wellnessLog?.hydrationLevel ?: 0} glasses",
-                    onIncrement = { onUpdate(null, (wellnessLog?.hydrationLevel ?: 0) + 1, null, null) },
-                    onDecrement = { onUpdate(null, ((wellnessLog?.hydrationLevel ?: 0) - 1).coerceAtLeast(0), null, null) }
+                    value = "$hydration glasses",
+                    onIncrement = { onUpdate(null, hydration + 1, null, null) },
+                    onDecrement = { onUpdate(null, (hydration - 1).coerceAtLeast(0), null, null) }
                 )
-                Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.White.copy(alpha = 0.05f))
+                if (hydration > 0) {
+                    M3Text(hydrationFeedback, color = if (hydration < 3) Color(0xFFF59E0B) else Color(0xFF94A3B8),
+                        fontSize = 11.sp, modifier = Modifier.padding(start = 36.dp, bottom = 4.dp))
+                }
+                Divider(modifier = Modifier.padding(vertical = 10.dp), color = Color.White.copy(alpha = 0.05f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    WellnessToggle(
-                        icon = Icons.Default.SelfImprovement,
-                        title = "Meditated",
-                        isSelected = wellnessLog?.meditated ?: false,
-                        onClick = { onUpdate(null, null, !(wellnessLog?.meditated ?: false), null) }
-                    )
+                    WellnessToggle(icon = Icons.Default.SelfImprovement, title = "Meditated",
+                        isSelected = meditated, onClick = { onUpdate(null, null, !meditated, null) })
                     Spacer(modifier = Modifier.width(16.dp))
-                    WellnessToggle(
-                        icon = Icons.Default.FitnessCenter,
-                        title = "Exercise",
-                        isSelected = wellnessLog?.exercise ?: false,
-                        onClick = { onUpdate(null, null, null, !(wellnessLog?.exercise ?: false)) }
-                    )
+                    WellnessToggle(icon = Icons.Default.FitnessCenter, title = "Exercise",
+                        isSelected = exercised, onClick = { onUpdate(null, null, null, !exercised) })
+                }
+                if (meditated || exercised) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    M3Text("✅ ${if (meditated && exercised) "Meditation + exercise" else if (meditated) "Meditation" else "Exercise"} boosts focus by up to 10%",
+                        color = Color(0xFF10B981), fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
                 }
             }
         }

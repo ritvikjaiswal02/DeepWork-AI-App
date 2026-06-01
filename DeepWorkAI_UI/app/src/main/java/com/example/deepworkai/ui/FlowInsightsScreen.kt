@@ -115,6 +115,29 @@ fun FlowInsightsScreen(
             ) {
                 Spacer(modifier = Modifier.height(32.dp))
 
+                // Info dialog state
+                var showInfo by remember { mutableStateOf(false) }
+                if (showInfo) {
+                    AlertDialog(
+                        onDismissRequest = { showInfo = false },
+                        title = { Text("What is Flow State Lab?", fontWeight = FontWeight.Bold) },
+                        text = {
+                            Text(
+                                "Flow State Lab analyzes your focus session behaviour.\n\n" +
+                                "• App names (e.g. Instagram) are apps you switched to during a session\n" +
+                                "• The time shown (e.g. 2 mins) is how long you used that app during the session\n" +
+                                "• More switches = lower focus score\n" +
+                                "• The AI recommendation at the bottom is generated based on your real distraction pattern\n\n" +
+                                "Tip: Complete a full session first — this screen shows your most recent data.",
+                                fontSize = 14.sp, lineHeight = 22.sp
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showInfo = false }) { Text("Got it") }
+                        }
+                    )
+                }
+
                 // Header
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
@@ -126,14 +149,14 @@ fun FlowInsightsScreen(
                             .clickable { navController.popBackStack() }
                     ) {
                         Icon(
-                            Icons.Default.ArrowBack, 
-                            contentDescription = "Back", 
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
                             tint = CyberNeonCyan,
                             modifier = Modifier.padding(8.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "FLOW.STATE.LAB",
                             color = Color.White,
@@ -141,7 +164,16 @@ fun FlowInsightsScreen(
                             fontWeight = FontWeight.Black,
                             letterSpacing = 2.sp
                         )
-                        Text("SYS.OVERRIDE_ACTIVE", color = CyberNeonCyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        Text("DISTRACTION ANALYSIS ACTIVE", color = CyberNeonCyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    }
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, CyberNeonCyan.copy(alpha = 0.3f)),
+                        modifier = Modifier.size(36.dp).clickable { showInfo = true }
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = "What is this?",
+                            tint = CyberNeonCyan, modifier = Modifier.padding(8.dp))
                     }
                 }
 

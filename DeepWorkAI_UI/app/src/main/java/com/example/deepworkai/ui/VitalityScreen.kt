@@ -121,8 +121,15 @@ fun VitalityScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // AI Vitality Insight
-            VitalityAIInsightCard(vitalityScore = vitalityScore, focusScore = analyticsData?.todayScore ?: 0)
+            // AI Vitality Insight (real LLM call)
+            VitalityAIInsightCard(
+                vitalityScore = vitalityScore,
+                focusScore = analyticsData?.todayScore ?: 0,
+                sleepHours = wellnessLog?.sleepHours ?: 0,
+                hydrationLevel = wellnessLog?.hydrationLevel ?: 0,
+                exerciseDone = wellnessLog?.exercise ?: false,
+                meditatedDone = wellnessLog?.meditated ?: false
+            )
 
             Spacer(modifier = Modifier.height(40.dp))
         }
@@ -226,7 +233,40 @@ fun CorrelationChart() {
 }
 
 @Composable
-fun VitalityAIInsightCard(vitalityScore: Int, focusScore: Int) {
+fun VitalityAIInsightCard(
+    vitalityScore: Int,
+    focusScore: Int,
+    sleepHours: Int,
+    hydrationLevel: Int,
+    exerciseDone: Boolean,
+    meditatedDone: Boolean
+) {
+    val focusService = remember { com.example.deepworkai.network.FocusService() }
+    var insight by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Re-fetch whenever any of the inputs change
+    LaunchedEffect(vitalityScore, focusScore, sleepHours, hydrationLevel, exerciseDone, meditatedDone) {
+        isLoading = true
+        insight = null
+        val context = buildString {
+            append("Sleep: ${sleepHours}h. ")
+            append("Hydration: ${hydrationLevel}/10 glasses. ")
+            append("Exercise today: ${if (exerciseDone) "yes" else "no"}. ")
+            append("Meditation today: ${if (meditatedDone) "yes" else "no"}. ")
+            append("Vitality score: $vitalityScore/100. ")
+            append("Today's focus score: $focusScore%.")
+        }
+        val query = "Give me one short personalised vitality insight (one or two sentences max). Reference at least one specific number from my data. Tell me what to fix or keep doing."
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val response = focusService.askAIAssistant(query, context)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                insight = response?.reply ?: "Log today's vitality data to receive a personalised insight."
+                isLoading = false
+            }
+        }
+    }
+
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = Color(0xFFEAB308).copy(alpha = 0.1f),
@@ -240,17 +280,28 @@ fun VitalityAIInsightCard(vitalityScore: Int, focusScore: Int) {
                 Text("AI VITALITY INSIGHT", color = Color(0xFFEAB308), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(12.dp))
-            val insight = if (vitalityScore > 70) {
-                "Your high vitality is directly correlated with your $focusScore focus score today. Keep this rhythm to avoid burnout."
+            if (isLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color(0xFFEAB308),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Analysing your data...",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp
+                    )
+                }
             } else {
-                "Increasing your hydration by 2 glasses could potentially boost your focus stability by 12% based on your history."
+                Text(
+                    text = insight ?: "",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
             }
-            Text(
-                text = insight,
-                color = Color.White,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
         }
     }
 }

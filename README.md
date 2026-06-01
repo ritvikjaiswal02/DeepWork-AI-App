@@ -1,101 +1,289 @@
-# DeepWorkAI: The Ultimate Privacy-First Productivity Ecosystem 🚀
+# DeepWorkAI — Behavioral Productivity Monitoring & Analysis System
 
-DeepWorkAI is a sophisticated, full-stack productivity suite designed for knowledge workers who want to master their focus. By combining real-time app tracking, machine learning-driven insights, and a sleek, futuristic interface, DeepWorkAI helps you enter and maintain the "Flow State" while protecting your privacy.
+A three-tier productivity application that observes how a focus session actually behaves, computes real-time cognitive metrics, and ties those metrics back to daily physical signals like sleep and hydration. Built end-to-end across Android, Kotlin backend, and a Python ML microservice.
 
----
-
-## ✨ Core Philosophy & Mathematical Foundation
-
-DeepWorkAI isn't just a timer; it computes real-time neurological and performance metrics. 
-
-### Mathematical Calculations
-*   **Cognitive Resilience ($R_c$)**: Measures your neurological resistance to digital distraction algorithms. 
-    $$R_c = \max(0, 100 - (D_{total} \times 2))$$
-    *(Where $D_{total}$ is the total minutes spent on distracting "Leak" apps during a session)*.
-*   **Focus Stability Score ($S_f$)**: The primary metric for your session. It evaluates your total time focused versus interruptions.
-    $$S_f = \text{Base Focus Duration} - \text{Distraction Penalty} + \text{Vitality Bonus}$$
-*   **Neural Burnout Predictor ($B_p$)**: Alerts you when you approach cognitive overload. The optimal threshold is dynamically calculated, but defaults to a critical limit of 300 minutes (5 hours) of intense focus per day.
-    $$B_p = \left( \frac{\sum \text{Focus Minutes Today}}{300} \right) \times 100\%$$
+> **Author**: Ritvik Jaiswal (229301143)
+> **Institute**: Manipal University Jaipur, B.Tech CSE
+> **Project window**: Feb 2026 – May 2026
 
 ---
 
-## 🛠️ Key Features
+## Why this exists
 
-### 🧪 Flow State Lab (Futuristic HUD)
-*   **Cybernetic Rotating HUD**: A dynamic, glowing visualizer for your Cognitive Resilience score. 
-*   **Glowing Cyber Trend Graph**: Replaces boring charts with a neon cyan/purple glowing trend line over a cybernetic grid, plotting your last 7 neural stability scores.
-*   **Attention Leaks Analysis**: Automatically detects when your attention drifts to known distracting apps and calculates the exact penalty in minutes.
-*   **Calibration Mode**: Beautiful empty-state animations ("Awaiting Neural Sync") prevent the app from looking broken when you have no data.
+Standard productivity tools like Pomodoro timers and time-tracking apps treat the user as a passive subject and only count minutes. DeepWorkAI takes a different approach:
 
-### ⚡ Vitality & Focus Sync
-*   **Focus-Fitness Correlation**: A dedicated dashboard that links physical wellness (Sleep, Hydration, Exercise) to your focus performance.
-*   **AI Vitality Insights**: Personalized recommendations on how to boost focus through lifestyle changes (e.g., "Increase hydration by 2 glasses for 12% better stability").
+- It **watches** how a focus session unfolds (foreground app, distraction count, duration).
+- It **computes** quantitative cognitive metrics — Cognitive Resilience, Focus Stability Score, Neural Burnout Predictor — from real session data.
+- It **correlates** those metrics with daily vitality inputs (sleep, hydration, exercise).
+- It **explains** its conclusions through an LLM-backed assistant that quotes the user's own numbers.
 
-### 📅 Smart Task Planner & Detailed Insights
-*   **Deep vs. Shallow Categorization**: AI-driven task sorting based on cognitive complexity.
-*   **Dynamic Session Linking**: When you start a focus session for a specific task, DeepWorkAI automatically imports the task metadata (Title, Category) into the database.
-*   **Actionable History Logs**: Instead of generic "Focus Blocks," your history clearly displays exactly what you worked on, along with summarized lifetime analytics (Total Focus Time, Avg Score, Top Category).
-
-### 🤖 AI Productivity Assistant (LLM Integration)
-*   **Context-Aware Cortex AI**: Integrated **Qwen-2.5-72B-Instruct** model via HuggingFace Inference API.
-*   **Burnout Risk Prediction**: Machine learning algorithms warn you before you overwork based on session history.
+Privacy stays inside the user's account on a self-hosted backend. The only external endpoint contacted during normal use is the HuggingFace Inference API, and it receives an abstracted summary of recent session history rather than raw application-level events.
 
 ---
 
-## 🏗️ Project Architecture
+## Architecture
 
-The ecosystem is divided into three specialized environments:
-
-```text
-DeepWorkAI-FullStack/
-├── DeepWorkAI_UI/      # Android Frontend (Kotlin, Jetpack Compose)
-├── DeepWorkBackend/    # Ktor REST API & Database Layer (PostgreSQL)
-└── deepwork_ml/        # Python ML Models & LLM Integration (AI Layer)
+```
+deepwork/
+├── DeepWorkAI_UI/      Android client (Kotlin, Jetpack Compose)
+├── DeepWorkBackend/    Ktor REST API (Kotlin, Exposed ORM, PostgreSQL)
+└── deepwork_ml/        Python microservice (FastAPI, Scikit-learn, Qwen-2.5)
 ```
 
-### 💻 Technology Stack
-*   **Frontend (Android)**: Kotlin, Jetpack Compose, Retrofit, Coroutines, Vico Charts, Canvas Animations.
-*   **Backend (REST API)**: Ktor (Kotlin Server), Exposed ORM, PostgreSQL, JWT Authentication.
-*   **ML/AI Server**: Python, Scikit-learn, HuggingFace Hub (InferenceClient), Pandas, FPDF.
+Three tiers communicating over REST. Each tier picks the language and toolchain best suited to its responsibilities.
+
+### Quantitative metrics
+
+| Metric | Symbol | Description |
+|---|---|---|
+| Cognitive Resilience | `R_c` | Neurological resistance to digital distraction, computed live during a session |
+| Focus Stability Score | `S_f` | Primary session quality score, blending focus duration, distraction penalty, vitality bonus |
+| Neural Burnout Predictor | `B_p` | ML-driven warning when accumulated cognitive load suggests an incoming slump |
+
+`B_p` is produced by a gradient boosting model trained on session features (duration, hour-of-day, distraction count, focus score) and serves a Low / Medium / High risk label.
 
 ---
 
-## 🚀 Getting Started
+## Tech stack
+
+### Frontend — `DeepWorkAI_UI`
+
+- **Kotlin 1.9** + **Jetpack Compose 1.6**
+- **Retrofit** + **Ktor Client** for HTTP
+- **Coroutines** for asynchronous work
+- **Vico** for analytics charts
+- **Compose Canvas API** for the custom Flow State Lab HUD
+- **Lottie** for splash and loading animations
+- **Google Sign-In** via OAuth 2.0
+
+### Backend — `DeepWorkBackend`
+
+- **Kotlin 1.9** + **Ktor 2.3** REST framework
+- **Exposed ORM 0.45** for type-safe SQL
+- **PostgreSQL 15** for persistence
+- **JWT** authentication (ktor-auth-jwt)
+- **Bcrypt** password hashing
+- Spawns the Python ML scripts via `ProcessBuilder`
+
+### ML & LLM Layer — `deepwork_ml`
+
+- **Python 3.11** + **FastAPI 0.110**
+- **Scikit-learn 1.3** for the burnout predictor and task categoriser
+- **Pandas 2.1** for feature preparation
+- **HuggingFace InferenceClient** calling **Qwen-2.5-72B-Instruct** for the Cortex assistant
+
+---
+
+## Key features
+
+### Flow State Lab
+A real-time cybernetic HUD rendered with Compose Canvas. Visualises `R_c` and a 7-session neural stability trend while a focus session is active.
+
+### Active Session
+- Custom intention + custom duration entered at start
+- Live timer with deterministic pause/resume
+- Foreground-app distraction detection via `UsageStatsManager`
+- Optional ambient music with shuffled playlist and auto-advance
+- Slide-to-finish gesture for instant session close
+- Saving overlay so the UI never feels frozen
+
+### Cortex AI Assistant
+Conversational interface backed by Qwen-2.5-72B-Instruct. Every reply must reference at least one specific number from the user's actual data — focus score, session count, top distracting app, etc. The assistant context is built server-side from:
+- Average focus score across all sessions
+- Last 3 completed sessions with names, scores, distractions
+- Top 3 most-distracting apps (by total usage seconds)
+- The user-supplied daily schedule
+
+### Vitality & Focus Sync
+Daily inputs for sleep, hydration, and exercise feed into both a deterministic Vitality Score and the LLM-backed Vitality Insight, which generates a one-sentence personalised observation each time the inputs change.
+
+### Smart Task Planner
+Tasks are classified as Deep or Shallow at creation time using a model trained on cognitive-complexity examples. Helps the user line up the right work for the right time of day.
+
+### Distraction Analytics
+Per-session app-usage logs aggregated into the Flow State Lab, ranked by total seconds. Recommendations are generated by Qwen based on the actual app names — no canned strings.
+
+---
+
+## Getting started
 
 ### Prerequisites
-*   **Android Studio** (Ladybug or newer)
-*   **IntelliJ IDEA** (For the Ktor backend)
-*   **Python 3.10+** (For the ML microservice)
-*   **PostgreSQL 14+**
 
-### Local Setup
+- **Android Studio Hedgehog (2023.1)** or later
+- **IntelliJ IDEA Ultimate 2024.1** (or equivalent) for the Ktor backend
+- **Python 3.11+** with pip
+- **PostgreSQL 15** running locally
+- A **HuggingFace** account with an Inference API token
+- A **Google Cloud** project with OAuth 2.0 credentials (Android + Web client) — optional, only if you want Continue-with-Google
 
-1.  **Database**: Start your PostgreSQL service and create a database named `deepworkdb`.
-2.  **Backend**: 
-    *   Navigate to `DeepWorkBackend`.
-    *   Rename `.env.example` to `.env` and fill in your DB credentials.
-    *   Run `Application.kt` in IntelliJ. The Exposed ORM will automatically create the necessary schema!
-3.  **Frontend**:
-    *   Open `DeepWorkAI_UI` in Android Studio.
-    *   Sync Gradle and run the app on an emulator or physical device.
-4.  **AI Layer**:
-    *   Navigate to `deepwork_ml` and run `pip install -r requirements.txt`.
-    *   Create a token on HuggingFace (with Inference API permissions) and add it to `deepwork_ml/.env`.
-    *   Start the Python Flask/FastAPI server.
+### 1. Database
+
+```sql
+CREATE DATABASE deepwork_db;
+```
+
+The Exposed ORM creates all tables automatically the first time the backend starts.
+
+### 2. Backend
+
+```powershell
+cd DeepWorkBackend
+$env:DATABASE_PASSWORD = "your_postgres_password"
+$env:DATABASE_USER     = "postgres"
+$env:DATABASE_URL      = "jdbc:postgresql://localhost:5432/deepwork_db"
+.\gradlew run
+```
+
+You should see:
+```
+DatabaseFactory: Connection successful
+Application started in X.X seconds.
+Responding at http://0.0.0.0:8080
+```
+
+For Google Sign-In token verification, also set:
+```powershell
+$env:GOOGLE_WEB_CLIENT_ID = "your-web-client-id.apps.googleusercontent.com"
+```
+
+### 3. Python ML Service
+
+```bash
+cd deepwork_ml
+pip install -r requirements.txt
+```
+
+Create `deepwork_ml/.env` with:
+```
+HF_API_KEY=hf_your_token_here
+```
+
+The backend invokes the Python scripts directly as subprocesses, so no separate server needs to be started for normal use.
+
+### 4. Android Client
+
+Open `DeepWorkAI_UI/` in Android Studio.
+
+The build script auto-detects your laptop's LAN IP and bakes it into `BuildConfig.BACKEND_URL`, so a phone on the same Wi-Fi can reach the backend with no extra config. To override manually, create `DeepWorkAI_UI/local.properties`:
+
+```
+BACKEND_URL=http\://YOUR_LAPTOP_IP\:8080
+GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+```
+
+Then **Build → Clean Project**, plug in your device (or start the emulator), and hit **Run**.
+
+#### Network notes
+
+- **Emulator**: backend reachable at `http://10.0.2.2:8080`
+- **Real device on the same Wi-Fi**: the auto-detected LAN IP (e.g. `http://192.168.1.8:8080`)
+- **Real device on a different network**: use the phone's mobile hotspot, connect the laptop to it, rebuild
+
+Make sure Windows Firewall has port 8080 open inbound on the Private profile.
 
 ---
 
-## 🤝 Feel Free to Contribute!
+## Project structure
 
-DeepWorkAI is open to contributions from developers, UI designers, and data scientists! Whether you want to improve the AI models, add a new Jetpack Compose animation, or optimize the Ktor database queries, your help is welcome.
+```
+DeepWorkAI_UI/app/src/main/java/com/example/deepworkai/
+├── ui/                  Compose screens (Home, ActiveSession, Analytics, Vitality, ...)
+├── viewmodel/           ViewModels for state + repository orchestration
+├── network/             Ktor HTTP clients (Auth, Focus, Task, Wellness, Profile)
+├── models/              Serializable DTOs shared with the backend
+└── utils/               AmbientAudioManager, AppUsageTracker, helpers
 
-**How to Contribute:**
-1. Fork the repository.
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the branch (`git push origin feature/AmazingFeature`).
-5. Open a Pull Request!
+DeepWorkBackend/src/main/kotlin/com/example/
+├── routes/              Ktor route definitions (sessions, analytics, tasks, ...)
+├── repository/          Database access layer
+├── db/                  Exposed table definitions and DatabaseFactory
+├── models/              Shared DTOs
+└── security/            JwtService, PasswordConfig, GoogleAuthService
+
+deepwork_ml/
+├── ai_chatbot.py            Cortex assistant — calls Qwen-2.5-72B-Instruct
+├── analytics_insights.py    Computes peak hours, consistency, switch counts
+├── get_ai_recommendation.py Per-session distraction recommendation
+└── predict_for_ktor.py      Burnout risk classifier
+```
 
 ---
 
-*Developed with ❤️ by [VaibhavSharmaggwp](https://github.com/VaibhavSharmaggwp)*
+## Mathematical foundation
+
+**Cognitive Resilience**
+
+```
+R_c = max(0, 100 − D_total × 2)
+```
+where `D_total` is the total minutes the user spent on distracting apps during the session.
+
+**Focus Stability Score**
+
+```
+S_f = BaseFocusDuration − DistractionPenalty + VitalityBonus
+```
+
+**Neural Burnout Predictor (deterministic component)**
+
+```
+B_p% = (Σ FocusMinutesToday ÷ 300) × 100
+```
+
+The deployed classifier is a Gradient Boosting model (Scikit-learn) using features:
+- session duration
+- hour of day
+- distraction count
+- focus score
+- 7-day rolling mean of the above
+
+It outputs a Low / Medium / High burnout risk label.
+
+---
+
+## Testing
+
+Internal testing covered five areas, each measured against targets set during requirements:
+
+| Area | Measured | Outcome |
+|---|---|---|
+| Authentication & session handling | end-to-end runs | Pass |
+| Focus tracking accuracy | timer drift + foreground-app detection | Pass |
+| Distraction detection | usage-stats integration | Pass (manual permission grant required on Android 13+) |
+| Vitality correlation | DB roundtrip + analytics | Pass |
+| LLM assistant flow | Qwen round-trip < 4s | Pass (avg ~3.2s) |
+
+---
+
+## Known limitations
+
+- On **Android 13 and above**, distraction detection relies on the `PACKAGE_USAGE_STATS` permission, which the user has to grant manually. The platform no longer allows silent access.
+- The HuggingFace Inference API has rate limits on the free tier; under sustained heavy use, Cortex replies may briefly return a service-pending fallback.
+- The backend currently caches the laptop's LAN IP at build time. If you switch Wi-Fi networks, you have to clean-rebuild the Android app or update `local.properties`.
+
+---
+
+## Planned extensions
+
+- **Compose Multiplatform** port for cross-platform support beyond Android
+- **Wearable integration** for heart-rate-variability input into the burnout predictor
+- **Desktop sync client** for users who alternate between phone and laptop during deep work
+- **Streaming Cortex responses** to reduce perceived latency
+
+---
+
+## Acknowledgements
+
+- **Project supervisor**: Ms. Kirti Paliwal, Department of Computer Science and Engineering, Manipal University Jaipur
+- **HoD**: Dr. Neha Chaudhary
+- **Department of Computer Science and Engineering**, School of CSE, Manipal University Jaipur
+
+---
+
+## License
+
+This project is part of a B.Tech major project submission. Code is shared for academic and learning purposes. If you want to reuse substantial portions, please open an issue and we can talk.
+
+---
+
+*Built by [Ritvik Jaiswal](https://github.com/ritvikjaiswal02) — 229301143*

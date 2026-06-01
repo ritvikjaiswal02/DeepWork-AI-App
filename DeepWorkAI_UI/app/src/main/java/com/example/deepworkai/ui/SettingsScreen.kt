@@ -39,9 +39,12 @@ fun SettingsScreen(
 ) {
     val user by profileViewModel.user
     val context = LocalContext.current
+    var lastSyncTime by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         profileViewModel.fetchProfile()
+        lastSyncTime = java.time.LocalTime.now()
+            .format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a"))
     }
 
     Scaffold(
@@ -142,23 +145,12 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
-                    PreferenceItem(
-                        icon = Icons.Default.NightsStay,
-                        title = "Dark Mode",
-                        subtitle = "System override",
-                        showSwitch = true,
-                        checked = user?.darkMode ?: true,
-                        onCheckedChange = { profileViewModel.updatePreferences(darkMode = it) }
-                    )
-                    Divider(color = MaterialTheme.colorScheme.background, thickness = 1.dp)
-                    PreferenceItem(
-                        icon = Icons.Default.Notifications,
-                        title = "Notifications",
-                        subtitle = "Smart focus reminders",
-                        onClick = { navController.navigate(Screen.Notifications.route) }
-                    )
-                }
+                PreferenceItem(
+                    icon = Icons.Default.Notifications,
+                    title = "Notifications",
+                    subtitle = "Smart focus reminders",
+                    onClick = { navController.navigate(Screen.Notifications.route) }
+                )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -199,11 +191,11 @@ fun SettingsScreen(
                     ) {
                         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF10B981)))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Data last synced: 10:42 AM", color = Color.Gray, fontSize = 12.sp)
+                        Text("Data last synced: $lastSyncTime", color = Color.Gray, fontSize = 12.sp)
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("AI Model Version: v4.2.0 (Stable)", color = Color(0xFF3B82F6), fontSize = 12.sp)
+                Text("ML: RandomForest v1.0  •  LLM: Qwen-2.5-72B", color = Color(0xFF3B82F6), fontSize = 12.sp)
             }
 
             Spacer(modifier = Modifier.height(32.dp))

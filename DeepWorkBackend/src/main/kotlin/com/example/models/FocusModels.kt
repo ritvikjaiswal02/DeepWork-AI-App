@@ -19,7 +19,7 @@ data class FocusSession(
 
 
 @Serializable
-data class StartSessionRequest(val userId: String, val taskId: String? = null)
+data class StartSessionRequest(val userId: String, val taskId: String? = null, val sessionName: String? = null)
 
 
 @Serializable

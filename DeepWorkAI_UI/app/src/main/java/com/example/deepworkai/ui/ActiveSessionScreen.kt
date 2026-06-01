@@ -48,7 +48,6 @@ import kotlin.math.roundToInt
 
 import com.airbnb.lottie.compose.*
 import es.dmoral.toasty.Toasty
-import android.widget.Toast
 import androidx.compose.foundation.verticalScroll
 
 @Composable
@@ -72,6 +71,8 @@ fun ActiveSessionScreen(
     var seconds by remember { mutableIntStateOf(0) } // Count up from 0
     var maxSeconds by remember { mutableIntStateOf(3600) } // Default 1 hour
     var targetDurationMinutes by remember { mutableIntStateOf(60) }
+    // Timer must NOT tick until the user finalises the dialog AND the backend confirms a session.
+    var sessionStarted by remember { mutableStateOf(false) }
     
     var distractions by remember { mutableIntStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -83,30 +84,41 @@ fun ActiveSessionScreen(
     var nextBreakDisplay by remember { mutableStateOf("5 minutes") }
     var breakTimeSeconds by remember { mutableIntStateOf(-1) }
     var showBreakPopup by remember { mutableStateOf(false) }
-    var showCompletionPopup by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
     var brainFocusValue by remember { mutableIntStateOf(85) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var sessionStartTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    var showEarlyFinishDialog by remember { mutableStateOf(false) }
-
     val audioManager = remember { com.example.deepworkai.utils.AmbientAudioManager(context) }
     
-    val soundList = listOf(
-        com.example.deepworkai.R.raw.lofi to "Lo-Fi Study",
-        com.example.deepworkai.R.raw.rain to "Heavy Rain",
-        com.example.deepworkai.R.raw.cafe to "Bustling Cafe",
-        com.example.deepworkai.R.raw.focus to "Deep Focus",
-        com.example.deepworkai.R.raw.meditate to "Meditation",
-        com.example.deepworkai.R.raw.yoga to "Yoga Flow"
-    )
+    // Shuffled per session so the same song doesn't always start first.
+    val soundList = remember {
+        listOf(
+            com.example.deepworkai.R.raw.colorful_flowers to "Colorful Flowers",
+            com.example.deepworkai.R.raw.double_rainbow to "Double Rainbow",
+            com.example.deepworkai.R.raw.golden_hour to "Golden Hour",
+            com.example.deepworkai.R.raw.magical_moments to "Magical Moments",
+            com.example.deepworkai.R.raw.sonder to "Sonder",
+            com.example.deepworkai.R.raw.precious_memories to "Precious Memories"
+        ).shuffled()
+    }
     var currentSoundIndex by remember { mutableIntStateOf(0) }
     val selectedSound = soundList[currentSoundIndex].first
     val soundName = soundList[currentSoundIndex].second
 
     var isAudioPlaying by remember { mutableStateOf(false) }
     var audioVolume by remember { mutableFloatStateOf(0.5f) }
+
+    // Auto-advance: when the current track finishes, hop to the next in the playlist and keep playing.
+    LaunchedEffect(Unit) {
+        audioManager.onTrackComplete = {
+            currentSoundIndex = (currentSoundIndex + 1) % soundList.size
+            val nextResId = soundList[currentSoundIndex].first
+            audioManager.playSound(nextResId)
+            isAudioPlaying = true
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -117,26 +129,39 @@ fun ActiveSessionScreen(
         // We'll start the session AFTER task selection or if they skip
 
     fun startFocusSessionInternal() {
+        // Start the local timer immediately so the UI feels responsive.
+        // The backend call happens in the background — if it fails, the user is informed but the timer still runs.
+        seconds = 0
+        sessionStartTime = System.currentTimeMillis()
+        sessionStarted = true
+
         coroutineScope.launch {
-            sessionStartTime = System.currentTimeMillis()
             if (!com.example.deepworkai.utils.AppUsageTracker.hasUsageStatsPermission(context)) {
                 com.example.deepworkai.utils.AppUsageTracker.requestUsageStatsPermission(context)
             }
-            val session = focusService.startSession(userId, selectedTaskId)
+            // Pass custom name only when not already covered by a task (tasks carry their own name from backend)
+            val nameToSend = if (selectedTaskId == null && selectedTaskTitle != "General Focus") selectedTaskTitle else null
+            val session = focusService.startSession(userId, selectedTaskId, nameToSend)
             if (session != null) {
                 sessionId = session.id
                 sessionNumber = session.sessionNumber
-            }
-            
-            // Late-Night Toast Warning
-            val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-            if (currentHour in 2..4) {
-                Toasty.error(context, "It's late, you should take a sleep.", Toast.LENGTH_LONG, true).show()
+                android.util.Log.d("ActiveSession", "Backend session created: ${session.id}")
+            } else {
+                android.util.Log.e("ActiveSession", "Backend startSession returned null — session will not be saved.")
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    es.dmoral.toasty.Toasty.warning(
+                        context,
+                        "Backend unreachable — session will run locally but won't be saved.",
+                        android.widget.Toast.LENGTH_LONG,
+                        true
+                    ).show()
+                }
             }
         }
     }
 
     var customIntention by remember { mutableStateOf("") }
+    var customDurationText by remember { mutableStateOf("60") }
 
     if (showTaskSelector) {
         AlertDialog(
@@ -161,21 +186,45 @@ fun ActiveSessionScreen(
                         ),
                         singleLine = true
                     )
-                    
+
+                    OutlinedTextField(
+                        value = customDurationText,
+                        onValueChange = { input ->
+                            // accept only digits, cap at 4 chars (up to 9999 mins)
+                            customDurationText = input.filter { it.isDigit() }.take(4)
+                        },
+                        label = { M3Text("Duration (minutes)", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = DeepWorkBlue,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        )
+                    )
+
                     Button(
                         onClick = {
                             if (customIntention.isNotBlank()) {
                                 selectedTaskTitle = customIntention
                                 viewModel.currentFocusIntention = customIntention
                             }
+                            val mins = customDurationText.toIntOrNull()?.coerceIn(1, 480) ?: 60
+                            targetDurationMinutes = mins
+                            maxSeconds = mins * 60
                             showTaskSelector = false
                             startFocusSessionInternal()
                         },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = DeepWorkBlue),
-                        enabled = customIntention.isNotBlank()
+                        enabled = customIntention.isNotBlank() && (customDurationText.toIntOrNull() ?: 0) > 0
                     ) {
-                        M3Text("Start with Custom Intention", color = Color.White)
+                        val label = customDurationText.toIntOrNull()?.let { "Start (${it} min)" } ?: "Start with Custom Intention"
+                        M3Text(label, color = Color.White)
                     }
 
                     Divider(color = Color.White.copy(alpha = 0.1f))
@@ -218,9 +267,27 @@ fun ActiveSessionScreen(
         )
     }
 
-    // Timer Logic: Increments every second if not paused
-    LaunchedEffect(isPaused) {
-        while (seconds < maxSeconds) {
+    // Unified end-session: called by both Slide-to-Finish AND timer auto-complete.
+    // Shows an instant "Saving…" overlay, then fires the backend call, then navigates.
+    fun endSessionAndExit() {
+        if (isSaving) return
+        isSaving = true
+        isPaused = true
+        coroutineScope.launch {
+            var finalResult: com.example.deepworkai.models.EndSessionResponse? = null
+            sessionId?.let { id ->
+                val endTime = System.currentTimeMillis()
+                val apps = com.example.deepworkai.utils.AppUsageTracker.getUsedApps(context, sessionStartTime, endTime)
+                finalResult = focusService.endSession(id, distractions, apps, targetDurationMinutes)
+            }
+            onFinish(finalResult)
+        }
+    }
+
+    // Timer Logic: Only ticks AFTER the user finalises the dialog and the backend confirms the session.
+    LaunchedEffect(isPaused, sessionStarted) {
+        if (!sessionStarted) return@LaunchedEffect
+        while (seconds < maxSeconds && !isSaving) {
             if (!isPaused) {
                 delay(1000)
                 seconds++
@@ -228,10 +295,9 @@ fun ActiveSessionScreen(
                 delay(500) // Polling interval while paused
             }
         }
-        // Auto-show completion popup if timer completes
-        if (seconds >= maxSeconds) {
-            showCompletionPopup = true
-            isPaused = true
+        // Timer naturally hit the target — end session directly without a popup.
+        if (seconds >= maxSeconds && !isSaving) {
+            endSessionAndExit()
         }
     }
 
@@ -253,10 +319,10 @@ fun ActiveSessionScreen(
         }
     }
 
-    // Distraction Logic: Detects if user leaves the app
-    DisposableEffect(lifecycleOwner) {
+    // Distraction Logic: Detects if user leaves the app — only counts once the session has actually started.
+    DisposableEffect(lifecycleOwner, sessionStarted) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE) {
+            if (event == Lifecycle.Event.ON_PAUSE && sessionStarted) {
                 distractions++
             }
         }
@@ -277,8 +343,9 @@ fun ActiveSessionScreen(
                 shadowElevation = if (isAudioPlaying) 8.dp else 0.dp,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
             ) {
-                Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                Column(modifier = Modifier.padding(top = 16.dp, bottom = 20.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -533,21 +600,7 @@ fun ActiveSessionScreen(
                 // Slide to Finish
                 SlideToFinish(
                     modifier = Modifier.weight(1f),
-                    onFinished = {
-                        if (seconds < maxSeconds && seconds > 5) { // Only show if more than 5 seconds but less than goal
-                            showEarlyFinishDialog = true
-                        } else {
-                            coroutineScope.launch {
-                                var finalResult: com.example.deepworkai.models.EndSessionResponse? = null
-                                sessionId?.let { id ->
-                                    val endTime = System.currentTimeMillis()
-                                    val apps = com.example.deepworkai.utils.AppUsageTracker.getUsedApps(context, sessionStartTime, endTime)
-                                    finalResult = focusService.endSession(id, distractions, apps, targetDurationMinutes)
-                                }
-                                onFinish(finalResult)
-                            }
-                        }
-                    }
+                    onFinished = { endSessionAndExit() }
                 )
             }
 
@@ -601,25 +654,6 @@ fun ActiveSessionScreen(
             )
         }
 
-        if (showEarlyFinishDialog) {
-            EarlyFinishDialog(
-                remainingSeconds = maxSeconds - seconds,
-                onDismiss = { showEarlyFinishDialog = false },
-                onConfirm = {
-                    showEarlyFinishDialog = false
-                    coroutineScope.launch {
-                        var finalResult: com.example.deepworkai.models.EndSessionResponse? = null
-                        sessionId?.let { id ->
-                            val endTime = System.currentTimeMillis()
-                            val apps = com.example.deepworkai.utils.AppUsageTracker.getUsedApps(context, sessionStartTime, endTime)
-                            finalResult = focusService.endSession(id, distractions, apps, targetDurationMinutes)
-                        }
-                        onFinish(finalResult)
-                    }
-                }
-            )
-        }
-
         if (showBreakPopup) {
             AlertDialog(
                 onDismissRequest = { showBreakPopup = false; isPaused = false },
@@ -643,42 +677,31 @@ fun ActiveSessionScreen(
             )
         }
 
-        if (showCompletionPopup) {
-            AlertDialog(
-                onDismissRequest = { /* Force action */ },
-                containerColor = surfaceColor,
-                title = { M3Text("Session Complete! 🎉", color = Color.White, fontWeight = FontWeight.Bold) },
-                text = { M3Text("Yayyy you completed it! Do you want to exit or continue focusing?", color = Color(0xFF94A3B8)) },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showCompletionPopup = false
-                            coroutineScope.launch {
-                                var finalResult: com.example.deepworkai.models.EndSessionResponse? = null
-                                sessionId?.let { id ->
-                                    val endTime = System.currentTimeMillis()
-                                    val apps = com.example.deepworkai.utils.AppUsageTracker.getUsedApps(context, sessionStartTime, endTime)
-                                    finalResult = focusService.endSession(id, distractions, apps, targetDurationMinutes)
-                                }
-                                onFinish(finalResult)
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = DeepWorkBlue)
-                    ) {
-                        M3Text("Exit", color = Color.White)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { 
-                        showCompletionPopup = false 
-                        maxSeconds += 1500 // Add 25 more minutes
-                        isPaused = false 
-                    }) {
-                        M3Text("Continue", color = DeepWorkBlue)
-                    }
-                },
-                shape = RoundedCornerShape(28.dp)
-            )
+        // Saving overlay — instant feedback while the backend call is in flight.
+        if (isSaving) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.75f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = DeepWorkBlue,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    M3Text(
+                        text = "Saving your session…",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
     }
 }
@@ -783,6 +806,7 @@ fun SlideToFinish(modifier: Modifier = Modifier, onFinished: () -> Unit) {
     val swipeState = remember { Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
     var maxWidthPx by remember { mutableFloatStateOf(0f) }
+    var isFinishing by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -796,8 +820,8 @@ fun SlideToFinish(modifier: Modifier = Modifier, onFinished: () -> Unit) {
     ) {
         // Background text
         M3Text(
-            text = "Slide to Finish   >", 
-            color = Color(0xFF2563EB), 
+            text = if (isFinishing) "Ending session…" else "Slide to Finish   >",
+            color = if (isFinishing) Color(0xFF94A3B8) else Color(0xFF2563EB),
             modifier = Modifier.align(Alignment.Center).offset(x = 10.dp),
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
@@ -812,16 +836,22 @@ fun SlideToFinish(modifier: Modifier = Modifier, onFinished: () -> Unit) {
                 modifier = Modifier
                     .offset { IntOffset(swipeState.value.roundToInt(), 0) }
                     .size(thumbSize)
-                    .background(Color(0xFF2563EB), RoundedCornerShape(24.dp))
+                    .background(
+                        if (isFinishing) Color(0xFF475569) else Color(0xFF2563EB),
+                        RoundedCornerShape(24.dp)
+                    )
                     .pointerInput(maxPx) {
                         detectHorizontalDragGestures(
                             onDragEnd = {
                                 coroutineScope.launch {
-                                    if (swipeState.value > maxPx * 0.8f) {
-                                        swipeState.animateTo(maxPx)
-                                        delay(100)
+                                    if (!isFinishing && swipeState.value > maxPx * 0.8f) {
+                                        isFinishing = true
+                                        // Fire the finish callback immediately so the parent screen
+                                        // can show its own "saving" overlay. Snap the thumb to the
+                                        // end without animation — the user has already left.
+                                        swipeState.snapTo(maxPx)
                                         onFinished()
-                                    } else {
+                                    } else if (!isFinishing) {
                                         swipeState.animateTo(0f, tween(300))
                                     }
                                 }

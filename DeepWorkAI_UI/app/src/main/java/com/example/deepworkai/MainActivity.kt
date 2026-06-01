@@ -66,7 +66,10 @@ class MainActivity : ComponentActivity() {
                         composable("splash") {
                             SplashScreen(
                                 onAnimationFinished = {
-                                    navController.navigate("login") {
+                                    // Skip login if already authenticated
+                                    val token = com.example.deepworkai.network.NetworkPreferences.authToken
+                                    val destination = if (!token.isNullOrBlank()) "home" else "login"
+                                    navController.navigate(destination) {
                                         popUpTo("splash") { inclusive = true }
                                     }
                                 }

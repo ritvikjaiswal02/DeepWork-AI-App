@@ -13,7 +13,7 @@ object DatabaseFactory{
     fun init(){
         // These credentials connect Ktor to the PostgreSQL you installed
         val driverClassName = "org.postgresql.Driver"
-        val jdbcUrl = System.getenv("DATABASE_URL") ?: "jdbc:postgresql://localhost:5433/deepwork_db"
+        val jdbcUrl = System.getenv("DATABASE_URL") ?: "jdbc:postgresql://localhost:5432/deepwork_db"
         val user = System.getenv("DATABASE_USER") ?: "postgres"
         val password = System.getenv("DATABASE_PASSWORD") ?: ""
         
@@ -40,20 +40,20 @@ object DatabaseFactory{
         newSuspendedTransaction(Dispatchers.IO) { block() }
 
 
-    suspend fun startFocusSession(userId: UUID, taskId: UUID? = null): FocusSession? = dbQuery {
+    suspend fun startFocusSession(userId: UUID, taskId: UUID? = null, customSessionName: String? = null): FocusSession? = dbQuery {
         val sessionId = UUID.randomUUID()
         val startTime = LocalDateTime.now()
 
         val currentCount = FocusSessionsTable.select { FocusSessionsTable.userId eq userId }.count().toInt()
         val nextSessionNumber = currentCount + 1
 
-        var fetchedSessionName: String? = null
+        var fetchedSessionName: String? = customSessionName
         var fetchedTags: String? = null
 
         if (taskId != null) {
             val taskRow = TasksTable.select { TasksTable.id eq taskId }.singleOrNull()
             if (taskRow != null) {
-                fetchedSessionName = taskRow[TasksTable.title]
+                if (fetchedSessionName == null) fetchedSessionName = taskRow[TasksTable.title]
                 fetchedTags = taskRow[TasksTable.category]
             }
         }

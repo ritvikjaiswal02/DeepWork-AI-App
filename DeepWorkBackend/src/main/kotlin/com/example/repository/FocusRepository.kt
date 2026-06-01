@@ -166,16 +166,19 @@ class FocusRepository {
             todayScore = todayScore,
             trend = trendStr,
             currentStreak = streakCount,
-            cognitivePeakInsight = aiMap["peak"] ?: "Your brain enters flow state fastest between 9:00 AM and 11:30 AM.",
-            consistencyInsight = aiMap["consistency"] ?: "Focus consistency improved by 21% compared to last week.",
-            switchesInsight = aiMap["switches"] ?: "You switched apps 42 times during your last session."
+            cognitivePeakInsight = aiMap["peak"] ?: "Run a few more focus sessions and your cognitive peak window will appear here.",
+            consistencyInsight = aiMap["consistency"] ?: "Consistency analysis needs at least two completed sessions.",
+            switchesInsight = aiMap["switches"] ?: "Distraction summary will appear after your next session."
         )
     }
 
     private fun getAIAnalyticsInsights(historyJson: String): Map<String, String> {
         return try {
-            val pythonPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\venv\\Scripts\\python.exe"
-            val scriptPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\analytics_insights.py"
+            val pythonPath = System.getenv("PYTHON_EXE")
+                ?: "C:\\Users\\ASUS\\AppData\\Local\\Programs\\Python\\Python313\\python.exe"
+            val mlDir = System.getenv("ML_SCRIPTS_DIR")
+                ?: "C:\\Users\\ASUS\\OneDrive\\Desktop\\deepwork\\deepwork_ml"
+            val scriptPath = "$mlDir\\analytics_insights.py"
 
             val process = ProcessBuilder(pythonPath, scriptPath, historyJson).start()
             val result = process.inputStream.bufferedReader().readText().trim()
@@ -184,9 +187,9 @@ class FocusRepository {
             Json.decodeFromString<Map<String, String>>(result)
         } catch (e: Exception) {
             mapOf(
-                "peak" to "Your brain enters flow state fastest between 9:00 AM and 11:30 AM.",
-                "consistency" to "Focus consistency improved by 21% compared to last week.",
-                "switches" to "Data pending..."
+                "peak" to "Run a few more focus sessions and your cognitive peak window will appear here.",
+                "consistency" to "Consistency analysis needs at least two completed sessions.",
+                "switches" to "Distraction summary will appear after your next session."
             )
         }
     }
@@ -206,17 +209,24 @@ class FocusRepository {
     }
 
     suspend fun getUserSessionHistory(userId: String): List<FocusSession> = dbQuery {
-        SessionHistoryTable.select { SessionHistoryTable.userId eq UUID.fromString(userId) }
-            .orderBy(SessionHistoryTable.startTime, SortOrder.DESC) // Newest sessions first
+        // Query FocusSessionsTable (not SessionHistoryTable) so sessionName and tags are included
+        FocusSessionsTable
+            .select {
+                (FocusSessionsTable.userId eq UUID.fromString(userId)) and
+                (FocusSessionsTable.endTime.isNotNull())
+            }
+            .orderBy(FocusSessionsTable.startTime, SortOrder.DESC)
             .map {
                 FocusSession(
-                    id = it[SessionHistoryTable.id].toString(),
-                    userId = it[SessionHistoryTable.userId].toString(),
-                    startTime = it[SessionHistoryTable.startTime].toString(),
-                    endTime = it[SessionHistoryTable.endTime].toString(),
-                    focusScore = it[SessionHistoryTable.focusStability],
-                    distractions = it[SessionHistoryTable.distractionsCount],
-                    cognitiveLoad = it[SessionHistoryTable.cognitiveLoadStatus]
+                    id = it[FocusSessionsTable.id].toString(),
+                    userId = it[FocusSessionsTable.userId].toString(),
+                    startTime = it[FocusSessionsTable.startTime].toString(),
+                    endTime = it[FocusSessionsTable.endTime]?.toString(),
+                    focusScore = it[FocusSessionsTable.focusScore],
+                    distractions = it[FocusSessionsTable.distractions],
+                    cognitiveLoad = it[FocusSessionsTable.cognitiveLoad] ?: "Low",
+                    sessionName = it[FocusSessionsTable.sessionName],
+                    tags = it[FocusSessionsTable.tags]
                 )
             }
     }

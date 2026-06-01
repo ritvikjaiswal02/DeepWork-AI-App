@@ -23,7 +23,7 @@ fun Route.allRoutes(repository: FocusRepository) {
                 val request = call.receive<StartSessionRequest>()
                 println("FocusRoutes: Starting session for user ${request.userId}, task ${request.taskId}")
                 val taskId = request.taskId?.let { UUID.fromString(it) }
-                val session = DatabaseFactory.startFocusSession(UUID.fromString(request.userId), taskId)
+                val session = DatabaseFactory.startFocusSession(UUID.fromString(request.userId), taskId, request.sessionName)
                 if (session != null) {
                     println("FocusRoutes: Session started with ID ${session.id}")
                     call.respond(HttpStatusCode.Created, session)
@@ -111,9 +111,40 @@ fun Route.allRoutes(repository: FocusRepository) {
 
                     val request = call.receive<ChatRequest>()
 
-                    // 🚀 FETCH REAL DATA: Use the real average score from the database
-                    val realScore = repository.getUserAverageFocusScore(userId)
-                    val userContext = "The user has an average focus score of $realScore% based on their actual deep work history."
+                    // ─── Build rich user context from real DB data ───
+                    val avgScore = repository.getUserAverageFocusScore(userId)
+                    val recentSessions = repository.getUserSessionHistory(userId).take(5)
+                    val distractions = try {
+                        DatabaseFactory.getDistractionsList(UUID.fromString(userId))
+                    } catch (_: Exception) { emptyList() }
+
+                    // Top 3 distracting apps across all sessions
+                    val topApps = distractions
+                        .flatMap { it.apps }
+                        .groupBy { it.appName }
+                        .mapValues { (_, v) -> v.sumOf { it.usageTime } }
+                        .toList()
+                        .sortedByDescending { it.second }
+                        .take(3)
+
+                    val totalSessions = recentSessions.size
+                    val sessionLines = recentSessions.take(3).joinToString("; ") { s ->
+                        val name = s.sessionName ?: "untitled"
+                        val date = s.startTime.take(10)
+                        "$date \"$name\" score=${s.focusScore}% distractions=${s.distractions} load=${s.cognitiveLoad}"
+                    }
+                    val appsLine = if (topApps.isNotEmpty()) {
+                        topApps.joinToString(", ") { "${it.first} (${it.second}s total)" }
+                    } else "none recorded"
+
+                    val userContext = buildString {
+                        appendLine("Average focus score across all sessions: $avgScore%.")
+                        appendLine("Total recent completed sessions: $totalSessions.")
+                        if (sessionLines.isNotBlank()) {
+                            appendLine("Last sessions: $sessionLines.")
+                        }
+                        appendLine("Top distracting apps: $appsLine.")
+                    }.trim()
 
                     val reply = getAIAssistantResponse(request.query, userContext, request.schedule)
                     call.respond(HttpStatusCode.OK, ChatResponse(reply))
@@ -159,14 +190,24 @@ fun Route.allRoutes(repository: FocusRepository) {
     }
 }
 
-// Keep your ML function outside
+// ── Path config ──────────────────────────────────────────────────────────────
+// PYTHON_EXE  env var overrides; falls back to the system Python on this machine.
+// ML_SCRIPTS_DIR env var overrides; falls back to the sibling deepwork_ml folder.
+private val PYTHON_EXE: String =
+    System.getenv("PYTHON_EXE")
+        ?: "C:\\Users\\ASUS\\AppData\\Local\\Programs\\Python\\Python313\\python.exe"
+
+private val ML_DIR: String =
+    System.getenv("ML_SCRIPTS_DIR")
+        ?: "C:\\Users\\ASUS\\OneDrive\\Desktop\\deepwork\\deepwork_ml"
+// ─────────────────────────────────────────────────────────────────────────────
+
 fun getMLBurnoutPrediction(duration: Double, hour: Int, distractions: Int, score: Int): String {
     return try {
-        val pythonPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\venv\\Scripts\\python.exe"
-        val scriptPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\predict_for_ktor.py"
+        val scriptPath = "$ML_DIR\\predict_for_ktor.py"
 
         val process = ProcessBuilder(
-            pythonPath, scriptPath,
+            PYTHON_EXE, scriptPath,
             duration.toString(), hour.toString(), distractions.toString(), score.toString()
         ).start()
 
@@ -179,17 +220,17 @@ fun getMLBurnoutPrediction(duration: Double, hour: Int, distractions: Int, score
             else -> "Low"
         }
     } catch (e: Exception) {
+        println("getMLBurnoutPrediction error: ${e.message}")
         "Low"
     }
 }
 
 fun getMLDistractionRecommendation(appsDataJson: String): String {
     return try {
-        val pythonPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\venv\\Scripts\\python.exe"
-        val scriptPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\get_ai_recommendation.py"
+        val scriptPath = "$ML_DIR\\get_ai_recommendation.py"
 
         val process = ProcessBuilder(
-            pythonPath, scriptPath, appsDataJson
+            PYTHON_EXE, scriptPath, appsDataJson
         ).start()
 
         val result = process.inputStream.bufferedReader().readText().trim()
@@ -197,17 +238,17 @@ fun getMLDistractionRecommendation(appsDataJson: String): String {
             "Consider limiting your usage of these apps during focus sessions."
         }
     } catch (e: Exception) {
+        println("getMLDistractionRecommendation error: ${e.message}")
         "Reduce your time on distracting apps to stay more focused."
     }
 }
 
 fun getAIAssistantResponse(query: String, context: String, schedule: String): String {
     return try {
-        val pythonPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\venv\\Scripts\\python.exe"
-        val scriptPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\ai_chatbot.py"
+        val scriptPath = "$ML_DIR\\ai_chatbot.py"
 
         val process = ProcessBuilder(
-            pythonPath, scriptPath, query, context, schedule
+            PYTHON_EXE, scriptPath, query, context, schedule
         ).start()
 
         val result = process.inputStream.bufferedReader().readText().trim()
@@ -215,6 +256,7 @@ fun getAIAssistantResponse(query: String, context: String, schedule: String): St
             "I'm sorry, I couldn't process your request."
         }
     } catch (e: Exception) {
+        println("getAIAssistantResponse error: ${e.message}")
         "Failed to reach AI service."
     }
 }
@@ -251,33 +293,10 @@ fun Route.sessionHistoryRoutes(repository: FocusRepository) {
         }
         // End of added history route
 
-        // Added this block to export PDF report via report_gen.py
-        get("/export/{userId}") {
-            val userId = call.parameters["userId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-            try {
-                val history = repository.getUserSessionHistory(userId)
-                
-                // Call Python to generate PDF
-                val pythonPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\venv\\Scripts\\python.exe"
-                val scriptPath = "C:\\Users\\srija\\Desktop\\MAJOR_PROJECT\\deepwork_ml\\report_gen.py"
-                
-                val process = ProcessBuilder(pythonPath, scriptPath, Json.encodeToString(history)).start()
-                val fileName = process.inputStream.bufferedReader().readText().trim()
-                
-                val file = File(fileName)
-                if (file.exists()) {
-                    call.response.header(
-                        HttpHeaders.ContentDisposition,
-                        ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, "FocusReport.pdf").toString()
-                    )
-                    call.respondFile(file)
-                } else {
-                    call.respond(HttpStatusCode.InternalServerError, "PDF file was not generated.")
-                }
-            } catch (e: Exception) {
-                call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
-            }
-        }
-        // End of PDF export route
+        // NOTE: The legacy Python-based PDF export route (/sessions/export/{userId}) was
+        // removed. It pointed at a hardcoded path on a different developer's machine
+        // (C:\Users\srija\...) and was never called by the app. PDF/CSV export is handled
+        // by the working pure-Kotlin routes in ExportRoutes.kt (/api/export/pdf and /csv),
+        // which is what the Android client actually uses.
     }
 }

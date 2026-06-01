@@ -16,22 +16,31 @@ def ask_ai(query, context, schedule):
         # Use HuggingFace InferenceClient
         client = InferenceClient(api_key=api_key)
         
+        system_prompt = (
+            "You are Cortex, the productivity assistant inside the DeepWorkAI app. "
+            "You answer using the user's REAL data shown below. "
+            "Rules: "
+            "(1) Reference at least one specific number or fact from the USER DATA in every reply "
+            "(focus score, session count, a distracting app name, etc.). "
+            "(2) Be concrete and personal, never generic. "
+            "(3) Keep the reply under 4 sentences. "
+            "(4) If the data shows a clear issue (low score, frequent distractions, no sessions, no sleep), "
+            "name it directly and give one actionable fix. "
+            "(5) Do not invent numbers that are not in the data.\n\n"
+            f"--- USER DATA ---\n{context}\n"
+            f"--- USER'S DAILY SCHEDULE ---\n{schedule if schedule else 'not provided'}"
+        )
+
         messages = [
-            {
-                "role": "system",
-                "content": f"You are DeepWorkAI, a helpful, encouraging productivity assistant. Keep answers very concise (under 3 sentences) and practical.\nUser's Recent Focus Stats: {context}\nUser's Daily Schedule: {schedule}"
-            },
-            {
-                "role": "user",
-                "content": query
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": query}
         ]
-        
+
         response = client.chat.completions.create(
-            model="Qwen/Qwen2.5-72B-Instruct", 
-            messages=messages, 
-            max_tokens=100,
-            temperature=0.7
+            model="Qwen/Qwen2.5-72B-Instruct",
+            messages=messages,
+            max_tokens=220,
+            temperature=0.6
         )
         
         return response.choices[0].message.content.strip()

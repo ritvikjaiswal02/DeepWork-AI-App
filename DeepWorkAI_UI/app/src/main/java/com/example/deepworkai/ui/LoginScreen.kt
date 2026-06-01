@@ -173,20 +173,8 @@ fun LoginScreen(
                 leadingIcon = Icons.Default.Email
             )
 
-            // --- Password Label Row ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("PASSWORD", color = DeepWorkTextPrimary, style = MaterialTheme.typography.labelLarge)
-                Text(
-                    text = "Forgot Password?",
-                    color = DeepWorkBlue,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.clickable { /* TODO: Forgot Password */ }
-                )
-            }
+            // --- Password Label ---
+            Text("PASSWORD", color = DeepWorkTextPrimary, style = MaterialTheme.typography.labelLarge)
 
             // --- Password Field ---
             CustomInputField(
